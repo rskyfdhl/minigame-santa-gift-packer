@@ -1,3 +1,4 @@
+// src/supabase/leaderboard.js
 import { supabase } from "./client";
 
 export const getLeaderboard = async (limit = 10) => {
@@ -5,15 +6,21 @@ export const getLeaderboard = async (limit = 10) => {
     .from("player_best_scores")
     .select("*")
     .order("highest_score", { ascending: false })
+    .order("best_streak", { ascending: false })
     .limit(limit);
 
-  if (error) throw error;
+  if (error) {
+    console.error("Leaderboard error:", error);
+    throw error;
+  }
+
   return data;
 };
 
+// Realtime
 export const subscribeToLeaderboard = (callback) => {
   return supabase
-    .channel("leaderboard-changes")
+    .channel("leaderboard_changes")
     .on(
       "postgres_changes",
       {

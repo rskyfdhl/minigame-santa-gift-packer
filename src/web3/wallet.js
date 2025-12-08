@@ -1,22 +1,85 @@
 // src/web3/wallet.js
 import toast from "react-hot-toast";
 
-// Somnia Mainnet configuration
 const SOMNIA_MAINNET = {
-  chainId: "0x13A7", // 5031 decimal
+  chainId: "0x13A7", // 5031
   chainName: "Somnia Mainnet",
   nativeCurrency: {
     name: "SOMI",
     symbol: "SOMI",
     decimals: 18,
   },
-  rpcUrls: ["https://api.infra.mainnet.somnia.network/"],
-  blockExplorerUrls: ["https://explorer.somnia.network"],
+  rpcUrls: ["https://api.infra.mainnet.somnia.network"],
+  blockExplorerUrls: ["https://mainnet.somnia.w3us.site"],
 };
 
-/**
- * Force switch to Somnia Mainnet
- */
+/* ============================================================
+   🔍 WALLET DETECTION (Desktop / Mobile)
+============================================================ */
+export const detectMobileWallet = () => {
+  const ua = navigator.userAgent;
+
+  return {
+    isMobile: /iPhone|iPad|iPod|Android/i.test(ua),
+    metaMask: /MetaMask/i.test(ua),
+    okx: /OKX|OKXWallet/i.test(ua),
+    bitget: /Bitget|BitKeep/i.test(ua),
+    tokenPocket: /TokenPocket/i.test(ua),
+    kucoin: /KuCoin/i.test(ua),
+    trust: /Trust/i.test(ua),
+    coinbase: /Coinbase/i.test(ua),
+  };
+};
+
+/* ============================================================
+   📱 MOBILE DEEP-LINK REDIRECTOR
+============================================================ */
+export const openMobileWallet = () => {
+  const url = encodeURIComponent(window.location.href);
+  const w = detectMobileWallet();
+
+  if (w.metaMask) {
+    window.location.href = `https://metamask.app.link/dapp/${url}`;
+    return;
+  }
+
+  if (w.okx) {
+    window.location.href = `okx://wallet/dapp/url?url=${url}`;
+    return;
+  }
+
+  if (w.bitget) {
+    window.location.href = `bitkeep://dapp?url=${url}`;
+    return;
+  }
+
+  if (w.tokenPocket) {
+    window.location.href = `tpbrowser://open?url=${url}`;
+    return;
+  }
+
+  if (w.kucoin) {
+    window.location.href = `kuwallet://open?url=${url}`;
+    return;
+  }
+
+  if (w.trust) {
+    window.location.href = `trust://browser_open?url=${url}`;
+    return;
+  }
+
+  if (w.coinbase) {
+    window.location.href = `https://go.cb-w.com/dapp?cb_url=${url}`;
+    return;
+  }
+
+  // fallback → MetaMask
+  window.location.href = `https://metamask.app.link/dapp/${url}`;
+};
+
+/* ============================================================
+   🔗 ENSURE CHAIN = SOMNIA MAINNET
+============================================================ */
 export const ensureSomniaChain = async () => {
   if (!window.ethereum) throw new Error("Wallet not detected");
 
@@ -27,97 +90,80 @@ export const ensureSomniaChain = async () => {
     });
   } catch (err) {
     if (err.code === 4902) {
-      // Network not added, add it
       await window.ethereum.request({
         method: "wallet_addEthereumChain",
         params: [SOMNIA_MAINNET],
       });
     } else {
-      console.error("Switch error:", err);
+      console.error(err);
       throw err;
     }
   }
 };
 
-/**
- * Connect wallet + force chain
- */
+/* ============================================================
+   🔌 CONNECT WALLET + FORCED CHAIN
+============================================================ */
 export const connectWallet = async () => {
-  if (!window.ethereum) throw new Error("MetaMask not found");
+  const { isMobile } = detectMobileWallet();
 
-  try {
-    const accounts = await window.ethereum.request({
-      method: "eth_requestAccounts",
-    });
-
-    await ensureSomniaChain();
-
-    // Add delay to let chain switch settle
-    await new Promise((r) => setTimeout(r, 300));
-
-    return { address: accounts[0] };
-  } catch (err) {
-    console.error("Wallet connection error:", err);
-    throw err;
+  // If mobile but no injected Ethereum → open dapp in in-app wallet
+  if (isMobile && !window.ethereum) {
+    openMobileWallet();
+    return;
   }
+
+  if (!window.ethereum) throw new Error("Wallet extension not found");
+
+  const accounts = await window.ethereum.request({
+    method: "eth_requestAccounts",
+  });
+
+  await ensureSomniaChain();
+  return { address: accounts[0] };
 };
 
-/**
- * Check connected wallet
- */
+/* ============================================================
+   🔎 CHECK CONNECTED WALLET
+============================================================ */
 export const getConnectedWallet = async () => {
   if (!window.ethereum) return null;
 
-  try {
-    const accounts = await window.ethereum.request({ method: "eth_accounts" });
-    if (!accounts || accounts.length === 0) return null;
+  const accounts = await window.ethereum.request({ method: "eth_accounts" });
+  if (!accounts.length) return null;
 
-    // Wait for chain to settle
-    await new Promise((r) => setTimeout(r, 200));
+  const chainId = await window.ethereum.request({ method: "eth_chainId" });
 
-    const chainId = await window.ethereum.request({ method: "eth_chainId" });
-
-    // Check if on correct network
-    if (chainId.toLowerCase() !== SOMNIA_MAINNET.chainId.toLowerCase()) {
-      console.log(
-        "Wrong network, expected:",
-        SOMNIA_MAINNET.chainId,
-        "got:",
-        chainId
-      );
-      return null;
-    }
-
-    return { address: accounts[0] };
-  } catch (err) {
-    console.error("Get wallet error:", err);
+  if (chainId !== SOMNIA_MAINNET.chainId) {
+    console.warn("Wrong chain — expected Somnia");
     return null;
   }
+
+  return { address: accounts[0] };
 };
 
-/**
- * Simply reload app (clean disconnect)
- */
+/* ============================================================
+   🚪 DISCONNECT (JUST RELOAD)
+============================================================ */
 export const disconnectWallet = () => {
   window.location.reload();
 };
 
-/**
- * Auto-handling whenever user switches network or account manually
- */
+/* ============================================================
+   🔄 AUTO-LISTENERS
+============================================================ */
 export const initWalletListeners = () => {
   if (!window.ethereum) return;
 
-  window.ethereum.on("accountsChanged", (accounts) => {
-    // Reload when account changes
-    setTimeout(() => window.location.reload(), 300);
+  window.ethereum.on("accountsChanged", () => {
+    toast("🔄 Wallet changed", { icon: "🔔" });
+    setTimeout(() => window.location.reload(), 400);
   });
 
   window.ethereum.on("chainChanged", (chainId) => {
-    // Give time for MetaMask to update chainId internally
     setTimeout(() => {
-      if (chainId.toLowerCase() !== SOMNIA_MAINNET.chainId.toLowerCase()) {
-        toast.error("Wrong network — switch to Somnia Mainnet");
+      if (chainId !== SOMNIA_MAINNET.chainId) {
+        toast.error("❌ Wrong Network — Switch to Somnia Mainnet");
       }
       window.location.reload();
     }, 300);

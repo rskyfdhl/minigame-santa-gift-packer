@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
 // Icons
-import { Gift, Trophy, Heart, Wallet } from "lucide-react";
+import { Gift, Trophy, Heart, Wallet, LogOut, Play } from "lucide-react";
 
 // Web3
 import { submitScoreOnChain } from "../web3/submitScore";
@@ -11,6 +11,8 @@ import {
   connectWallet,
   getConnectedWallet,
   disconnectWallet,
+  detectMobileWallet,
+  openMobileWallet,
 } from "../web3/wallet";
 
 // Supabase
@@ -132,7 +134,7 @@ const SantaGiftPacker = () => {
     const username = tempUsername.trim();
 
     if (!username) {
-      setAuthError("Please enter a username!");
+      setAuthError("Please enter a username Discord!");
       return;
     }
 
@@ -402,26 +404,50 @@ const SantaGiftPacker = () => {
     return colors[color] || "bg-gray-500";
   };
 
-  // ------- UI -------
+  // -------- AUTH SCREEN (UPDATED WITH MULTIWALLET MOBILE SUPPORT) --------
   if (gameState === "auth") {
+    const { isMobile } = detectMobileWallet(); // auto-detect mobile
+
     return (
-      <div className="min-h-screen  from-blue-900 via-blue-800 to-blue-900 text-white p-4 flex items-center justify-center">
+      <div className="min-h-screen from-blue-900 via-blue-800 to-blue-900 text-white p-4 flex items-center justify-center">
         <Toaster position="top-center" />
         <div className="max-w-md w-full text-center">
           <h1 className="text-5xl font-bold mb-4 text-yellow-300">
             🎅 Santa's Gift Packer
           </h1>
+
           <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8">
             <Wallet className="mx-auto mb-4 text-yellow-300" size={48} />
-            <button
-              onClick={connectWalletAuth}
-              disabled={isLoading}
-              className="w-full px-6 py-4 bg-purple-600 rounded-xl font-bold text-xl hover:bg-purple-700 disabled:opacity-50"
-            >
-              {isLoading ? "Connecting..." : "🔗 Connect Wallet"}
-            </button>
+
+            {/* MOBILE: jika tidak ada wallet injected */}
+            {isMobile && !window.ethereum && (
+              <button
+                onClick={openMobileWallet}
+                className="w-full px-6 py-4 bg-orange-500 rounded-xl font-bold text-xl hover:bg-orange-600"
+              >
+                📱 Open in Your Wallet Browser
+              </button>
+            )}
+
+            {/* DESKTOP or MOBILE WITH INJECTED WALLET */}
+            {(!isMobile || window.ethereum) && (
+              <button
+                onClick={connectWalletAuth}
+                disabled={isLoading}
+                className="w-full px-6 py-4 bg-purple-600 rounded-xl font-bold text-xl hover:bg-purple-700 disabled:opacity-50"
+              >
+                {isLoading ? "Connecting..." : "🔗 Connect Wallet"}
+              </button>
+            )}
+
             {authError && <p className="mt-4 text-red-400">{authError}</p>}
           </div>
+
+          {/* OPTIONAL small helper text */}
+          <p className="mt-4 text-blue-200 text-sm">
+            Make sure you are on{" "}
+            <span className="text-yellow-300">Somnia Mainnet</span>
+          </p>
         </div>
       </div>
     );
@@ -447,7 +473,7 @@ const SantaGiftPacker = () => {
               className="w-full p-3 rounded-lg text-black mb-4"
               value={tempUsername}
               onChange={(e) => setTempUsername(e.target.value)}
-              placeholder="Enter username (3-20 chars)"
+              placeholder="Enter your Discord username (3-20 chars)"
               maxLength={20}
             />
 
@@ -456,7 +482,7 @@ const SantaGiftPacker = () => {
               disabled={isLoading}
               className="w-full px-6 py-3 bg-green-600 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50"
             >
-              {isLoading ? "Creating..." : "✅ Create Profile"}
+              {isLoading ? "Creating..." : "Create Profile"}
             </button>
 
             {authError && (
@@ -492,14 +518,14 @@ const SantaGiftPacker = () => {
                 onClick={startGame}
                 className="w-full px-6 py-4 bg-green-600 rounded-sm font-bold text-xl hover:bg-green-700"
               >
-                🎮 START GAME
+                <Play className="text-white" /> START GAME
               </button>
 
               <button
                 onClick={logout}
                 className="w-full mt-4 px-4 py-2 bg-red-500 rounded-sm hover:bg-red-600"
               >
-                🚪 Logout
+                <LogOut className="text-white" /> Logout
               </button>
             </div>
 
@@ -774,7 +800,7 @@ const SantaGiftPacker = () => {
                   ? "Submitting..."
                   : hasSubmitted
                   ? "Submitted"
-                  : "📤 Submit to Blockchain"}
+                  : "Submit to Blockchain"}
               </button>
 
               <div className="flex gap-4">
@@ -785,13 +811,13 @@ const SantaGiftPacker = () => {
                   }}
                   className="flex-1 px-6 py-4 bg-white/10 rounded-xl font-bold text-xl hover:bg-white/20 transition-all active:scale-95"
                 >
-                  📊 Leaderboard
+                  <Trophy className="text-yellow-300" /> Leaderboard
                 </button>
                 <button
                   onClick={startGame}
                   className="w-full px-6 py-4 bg-green-600 rounded-xl font-bold text-xl hover:bg-green-700"
                 >
-                  🔁 Play Again
+                  <Play className="text-white" /> Play Again
                 </button>
               </div>
             </div>
