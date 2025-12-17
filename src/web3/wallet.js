@@ -5,12 +5,17 @@ const SOMNIA_MAINNET = {
   chainId: "0x13A7", // 5031 - keeping uppercase as canonical
   chainName: "Somnia Mainnet",
   nativeCurrency: {
-    name: "STT",
-    symbol: "STT",
+    name: "SOMI",
+    symbol: "SOMI",
     decimals: 18,
   },
-  rpcUrls: ["https://dream-rpc.somnia.network"],
-  blockExplorerUrls: ["https://somnia.w3us.site"],
+  // Multiple RPC URLs as fallback
+  rpcUrls: [
+    "https://dream-rpc.somnia.network",
+    "https://rpc.somnia.network",
+    "https://api.infra.mainnet.somnia.network",
+  ],
+  blockExplorerUrls: ["https://explorer.somnia.network"],
 };
 
 // Helper function to normalize chain ID comparison

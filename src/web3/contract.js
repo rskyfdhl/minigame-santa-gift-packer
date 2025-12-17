@@ -37,12 +37,12 @@ export const getContract = async () => {
 
   try {
     // Create provider
-    console.log("Creating provider...");
+    console.log("[Contract] Creating provider...");
     const provider = new ethers.BrowserProvider(window.ethereum);
 
     // Verify network
     const network = await provider.getNetwork();
-    console.log("Connected to network:", network.chainId.toString());
+    console.log("[Contract] Connected to network:", network.chainId.toString());
 
     const expectedChainId = 5031; // Somnia Mainnet
     if (network.chainId !== BigInt(expectedChainId)) {
@@ -52,21 +52,21 @@ export const getContract = async () => {
     }
 
     // Get signer
-    console.log("Getting signer...");
+    console.log("[Contract] Getting signer...");
     const signer = await provider.getSigner();
     const signerAddress = await signer.getAddress();
-    console.log("Signer address:", signerAddress);
+    console.log("[Contract] Signer address:", signerAddress);
 
     // Check balance
     const balance = await provider.getBalance(signerAddress);
-    console.log("Balance:", ethers.formatEther(balance), "STT");
+    console.log("[Contract] Balance:", ethers.formatEther(balance), "SOMI");
 
     if (balance === 0n) {
-      throw new Error("Insufficient balance. You need STT tokens for gas.");
+      throw new Error("Insufficient balance. You need SOMI tokens for gas.");
     }
 
     // Create contract instance
-    console.log("Creating contract instance...");
+    console.log("[Contract] Creating contract instance...");
     const contract = new ethers.Contract(
       SANTA_SCORES_ADDRESS,
       SANTA_SCORES_ABI,
@@ -78,11 +78,11 @@ export const getContract = async () => {
     if (code === "0x") {
       throw new Error("Contract not found at the specified address");
     }
-    console.log("Contract verified at:", SANTA_SCORES_ADDRESS);
+    console.log("[Contract] ✅ Contract verified at:", SANTA_SCORES_ADDRESS);
 
     return contract;
   } catch (error) {
-    console.error("Error creating contract instance:", error);
+    console.error("[Contract] Error creating contract instance:", error);
     throw error;
   }
 };
