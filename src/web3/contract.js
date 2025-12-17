@@ -1,3 +1,4 @@
+// src/web3/contract.js
 import { ethers } from "ethers";
 
 export const SANTA_SCORES_ADDRESS =
@@ -15,20 +16,85 @@ export const SANTA_SCORES_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  // Add read-only functions to test contract connectivity
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "players",
+    outputs: [
+      { internalType: "string", name: "username", type: "string" },
+      { internalType: "uint256", name: "highestScore", type: "uint256" },
+      { internalType: "uint256", name: "bestStreak", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
 ];
 
 export const getContract = async () => {
-  if (!window.ethereum) throw new Error("Wallet not found");
+  if (!window.ethereum) {
+    throw new Error("Wallet not found");
+  }
 
-  // ethers v6 wajib await provider.getSigner()
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const signer = await provider.getSigner();
+  try {
+    // Create provider
+    console.log("Creating provider...");
+    const provider = new ethers.BrowserProvider(window.ethereum);
 
-  return new ethers.Contract(SANTA_SCORES_ADDRESS, SANTA_SCORES_ABI, signer);
+    // Verify network
+    const network = await provider.getNetwork();
+    console.log("Connected to network:", network.chainId.toString());
+
+    const expectedChainId = 5031; // Somnia Mainnet
+    if (network.chainId !== BigInt(expectedChainId)) {
+      throw new Error(
+        `Wrong network. Expected chain ID ${expectedChainId}, got ${network.chainId}`
+      );
+    }
+
+    // Get signer
+    console.log("Getting signer...");
+    const signer = await provider.getSigner();
+    const signerAddress = await signer.getAddress();
+    console.log("Signer address:", signerAddress);
+
+    // Check balance
+    const balance = await provider.getBalance(signerAddress);
+    console.log("Balance:", ethers.formatEther(balance), "STT");
+
+    if (balance === 0n) {
+      throw new Error("Insufficient balance. You need STT tokens for gas.");
+    }
+
+    // Create contract instance
+    console.log("Creating contract instance...");
+    const contract = new ethers.Contract(
+      SANTA_SCORES_ADDRESS,
+      SANTA_SCORES_ABI,
+      signer
+    );
+
+    // Verify contract exists by checking code
+    const code = await provider.getCode(SANTA_SCORES_ADDRESS);
+    if (code === "0x") {
+      throw new Error("Contract not found at the specified address");
+    }
+    console.log("Contract verified at:", SANTA_SCORES_ADDRESS);
+
+    return contract;
+  } catch (error) {
+    console.error("Error creating contract instance:", error);
+    throw error;
+  }
 };
 
-export const submitScoreOnChain = async (username, score, bestStreak) => {
-  const contract = await getContract();
-  const tx = await contract.submitScore(username, score, bestStreak);
-  return tx;
+// Helper function to check if contract is working
+export const testContractConnection = async () => {
+  try {
+    const contract = await getContract();
+    console.log("Contract connection successful");
+    return true;
+  } catch (error) {
+    console.error("Contract connection test failed:", error);
+    return false;
+  }
 };

@@ -5,12 +5,12 @@ const SOMNIA_MAINNET = {
   chainId: "0x13A7", // 5031
   chainName: "Somnia Mainnet",
   nativeCurrency: {
-    name: "SOMI",
-    symbol: "SOMI",
+    name: "STT",
+    symbol: "STT",
     decimals: 18,
   },
-  rpcUrls: ["https://api.infra.mainnet.somnia.network"],
-  blockExplorerUrls: ["https://mainnet.somnia.w3us.site"],
+  rpcUrls: ["https://dream-rpc.somnia.network"],
+  blockExplorerUrls: ["https://somnia.w3us.site"],
 };
 
 /* ============================================================
@@ -84,18 +84,45 @@ export const ensureSomniaChain = async () => {
   if (!window.ethereum) throw new Error("Wallet not detected");
 
   try {
+    // First check current chain
+    const currentChainId = await window.ethereum.request({
+      method: "eth_chainId",
+    });
+
+    console.log("Current chain:", currentChainId);
+    console.log("Expected chain:", SOMNIA_MAINNET.chainId);
+
+    // Convert both to lowercase for case-insensitive comparison
+    if (currentChainId.toLowerCase() === SOMNIA_MAINNET.chainId.toLowerCase()) {
+      console.log("Already on Somnia Mainnet");
+      return;
+    }
+
+    // Try to switch
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: SOMNIA_MAINNET.chainId }],
     });
+
+    toast.success("Switched to Somnia Mainnet");
   } catch (err) {
+    console.error("Switch chain error:", err);
+
+    // If chain not added (error 4902), add it
     if (err.code === 4902) {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [SOMNIA_MAINNET],
-      });
+      try {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [SOMNIA_MAINNET],
+        });
+        toast.success("Somnia Mainnet added!");
+      } catch (addError) {
+        console.error("Add chain error:", addError);
+        throw new Error("Failed to add Somnia network");
+      }
+    } else if (err.code === 4001) {
+      throw new Error("User rejected network switch");
     } else {
-      console.error(err);
       throw err;
     }
   }
@@ -113,14 +140,42 @@ export const connectWallet = async () => {
     return;
   }
 
-  if (!window.ethereum) throw new Error("Wallet extension not found");
+  if (!window.ethereum) {
+    throw new Error(
+      "Wallet extension not found. Please install MetaMask or another Web3 wallet."
+    );
+  }
 
-  const accounts = await window.ethereum.request({
-    method: "eth_requestAccounts",
-  });
+  try {
+    // Step 1: Request accounts
+    console.log("Requesting accounts...");
+    const accounts = await window.ethereum.request({
+      method: "eth_requestAccounts",
+    });
 
-  await ensureSomniaChain();
-  return { address: accounts[0] };
+    if (!accounts || accounts.length === 0) {
+      throw new Error("No accounts found");
+    }
+
+    console.log("Connected account:", accounts[0]);
+
+    // Step 2: Ensure correct chain
+    await ensureSomniaChain();
+
+    // Step 3: Verify connection
+    const finalChainId = await window.ethereum.request({
+      method: "eth_chainId",
+    });
+
+    if (finalChainId.toLowerCase() !== SOMNIA_MAINNET.chainId.toLowerCase()) {
+      throw new Error("Please switch to Somnia Mainnet");
+    }
+
+    return { address: accounts[0] };
+  } catch (error) {
+    console.error("Connect wallet error:", error);
+    throw error;
+  }
 };
 
 /* ============================================================
@@ -129,17 +184,22 @@ export const connectWallet = async () => {
 export const getConnectedWallet = async () => {
   if (!window.ethereum) return null;
 
-  const accounts = await window.ethereum.request({ method: "eth_accounts" });
-  if (!accounts.length) return null;
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_accounts" });
+    if (!accounts.length) return null;
 
-  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    const chainId = await window.ethereum.request({ method: "eth_chainId" });
 
-  if (chainId !== SOMNIA_MAINNET.chainId) {
-    console.warn("Wrong chain — expected Somnia");
+    if (chainId.toLowerCase() !== SOMNIA_MAINNET.chainId.toLowerCase()) {
+      console.warn("Wrong chain – expected Somnia");
+      return null;
+    }
+
+    return { address: accounts[0] };
+  } catch (error) {
+    console.error("Get connected wallet error:", error);
     return null;
   }
-
-  return { address: accounts[0] };
 };
 
 /* ============================================================
@@ -155,15 +215,17 @@ export const disconnectWallet = () => {
 export const initWalletListeners = () => {
   if (!window.ethereum) return;
 
-  window.ethereum.on("accountsChanged", () => {
+  window.ethereum.on("accountsChanged", (accounts) => {
+    console.log("Accounts changed:", accounts);
     toast("🔄 Wallet changed", { icon: "🔔" });
     setTimeout(() => window.location.reload(), 400);
   });
 
   window.ethereum.on("chainChanged", (chainId) => {
+    console.log("Chain changed:", chainId);
     setTimeout(() => {
-      if (chainId !== SOMNIA_MAINNET.chainId) {
-        toast.error("❌ Wrong Network — Switch to Somnia Mainnet");
+      if (chainId.toLowerCase() !== SOMNIA_MAINNET.chainId.toLowerCase()) {
+        toast.error("❌ Wrong Network – Switch to Somnia Mainnet");
       }
       window.location.reload();
     }, 300);
